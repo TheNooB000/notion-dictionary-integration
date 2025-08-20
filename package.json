@@ -1,0 +1,13 @@
+{
+  "name": "notion-dictionary-integration",
+  "version": "1.0.0",
+  "description": "Automatically fetch definitions for vocabulary words in Notion",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^1.0.4",
+    "node-fetch": "^2.6.7"
+  }
+}
