@@ -24,6 +24,7 @@ async function fetchFromDictionaryAPI(word) {
       return null;
     }
     
+    // Basic word information
     const meaning = data[0].meanings[0];
     const definition = meaning.definitions[0]?.definition || '';
     const example = meaning.definitions[0]?.example || '';
@@ -31,10 +32,18 @@ async function fetchFromDictionaryAPI(word) {
     const synonyms = meaning.synonyms || [];
     const antonyms = meaning.antonyms || [];
     
+    // Determine language (Free Dictionary API is English-only, but we could extend this)
+    const language = 'English';
+    
+    // Generate tags based on part of speech and word characteristics
+    const tags = generateTags(word, partOfSpeech, definition);
+    
     return {
       definition,
       example,
       partOfSpeech,
+      language,
+      tags,
       synonyms: synonyms.join(', '),
       antonyms: antonyms.join(', ')
     };
@@ -42,6 +51,48 @@ async function fetchFromDictionaryAPI(word) {
     console.error(`Error fetching definition for word ${word}:`, error);
     return null;
   }
+}
+
+// Function to generate tags based on word characteristics
+function generateTags(word, partOfSpeech, definition) {
+  const tags = [];
+  
+  // Add tag based on part of speech
+  if (partOfSpeech) {
+    tags.push(partOfSpeech.charAt(0).toUpperCase() + partOfSpeech.slice(1));
+  }
+  
+  // Check for academic words
+  const academicKeywords = ['theory', 'concept', 'framework', 'analysis', 'research', 'scholarly', 'academic', 'study', 'science'];
+  if (academicKeywords.some(keyword => definition.toLowerCase().includes(keyword))) {
+    tags.push('Academic');
+  }
+  
+  // Check for technical terms
+  const techKeywords = ['technology', 'digital', 'computer', 'software', 'hardware', 'device', 'technical', 'system', 'data'];
+  if (techKeywords.some(keyword => definition.toLowerCase().includes(keyword))) {
+    tags.push('Technology');
+  }
+  
+  // Check for literary terms
+  const literaryKeywords = ['literary', 'novel', 'poem', 'writer', 'narrative', 'character', 'fiction', 'literature', 'story'];
+  if (literaryKeywords.some(keyword => definition.toLowerCase().includes(keyword))) {
+    tags.push('Literature');
+  }
+  
+  // Check for business terms
+  const businessKeywords = ['business', 'finance', 'economic', 'market', 'trade', 'company', 'corporate', 'commercial', 'management'];
+  if (businessKeywords.some(keyword => definition.toLowerCase().includes(keyword))) {
+    tags.push('Business');
+  }
+
+  // Add a default tag if none were added
+  if (tags.length <= 1) {
+    tags.push('General');
+  }
+  
+  // Return unique tags (no duplicates)
+  return [...new Set(tags)];
 }
 
 async function updateWordDefinition() {
@@ -73,7 +124,7 @@ async function updateWordDefinition() {
         }
         
         // 3. Update the Notion database with the fetched information
-        await notion.pages.update({
+        const updateData = {
           page_id: page.id,
           properties: {
             'Definition': { 
@@ -85,6 +136,9 @@ async function updateWordDefinition() {
             'Part of Speech': {
               select: { name: capitalizeFirstLetter(definitionData.partOfSpeech) }
             },
+            'Language': {
+              select: { name: definitionData.language }
+            },
             'Synonyms': {
               rich_text: [{ text: { content: definitionData.synonyms } }]
             },
@@ -95,7 +149,16 @@ async function updateWordDefinition() {
               date: { start: new Date().toISOString().split('T')[0] }
             }
           }
-        });
+        };
+        
+        // Add tags if they exist
+        if (definitionData.tags && definitionData.tags.length > 0) {
+          updateData.properties['Tags'] = {
+            multi_select: definitionData.tags.map(tag => ({ name: tag }))
+          };
+        }
+        
+        await notion.pages.update(updateData);
         
         console.log(`Updated word: ${word}`);
       } catch (error) {
